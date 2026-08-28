@@ -10,6 +10,8 @@ module.exports = {
         steeldark: "#26445C",
         signal: "#FF6B35",
         line: "#DADEE2",
+        good: "#2F8558", // muted green — pairs with steel blue, used for "awarded/accepted" and checkboxes
+        danger: "#C0392B",
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],

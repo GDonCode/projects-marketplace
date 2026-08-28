@@ -29,6 +29,6 @@
     @apply inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium uppercase tracking-wide;
   }
   .badge-open { @apply bg-steel/10 text-steeldark; }
-  .badge-awarded { @apply bg-signal/10 text-signal; }
+  .badge-awarded { @apply bg-good/10 text-good; }
   .badge-closed { @apply bg-ink/10 text-ink/60; }
 }

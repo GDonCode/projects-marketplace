@@ -61,7 +61,7 @@ export default async function DashboardPage() {
                   type="checkbox"
                   name="job_ids"
                   value={job.id}
-                  className="accent-signal shrink-0"
+                  className="shrink-0"
                   aria-label={`Select ${job.title}`}
                 />
                 <Link

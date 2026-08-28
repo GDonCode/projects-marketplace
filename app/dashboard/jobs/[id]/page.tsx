@@ -98,7 +98,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               <input type="hidden" name="job_id" value={job.id} />
               {uninvited.map((t) => (
                 <label key={t.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="tradesmen" value={t.id} className="accent-signal" />
+                  <input type="checkbox" name="tradesmen" value={t.id} />
                   <span>{t.name}</span>
                   {t.trade && <span className="text-ink/50">— {t.trade}</span>}
                 </label>

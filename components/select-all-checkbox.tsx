@@ -14,7 +14,6 @@ export function SelectAllCheckbox() {
     <input
       type="checkbox"
       onChange={toggleAll}
-      className="accent-signal"
       aria-label="Select all jobs"
     />
   );

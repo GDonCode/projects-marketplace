@@ -4,7 +4,7 @@ export function ConfirmDeleteButton() {
   return (
     <button
       type="submit"
-      className="btn-secondary border-signal text-signal hover:border-signal"
+      className="btn-secondary border-danger text-danger hover:border-danger"
       onClick={(e) => {
         if (
           !confirm(
