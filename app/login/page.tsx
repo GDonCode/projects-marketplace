@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,8 +41,9 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-md">
         <div className="mb-8">
+          <Image src="/FL_LOGO.png" alt="Logo of FL Logistics LLC" width={100} height={100} />
           <p className="label mb-2">Projects Marketplace</p>
           <h1 className="text-3xl font-semibold">Sign in</h1>
         </div>

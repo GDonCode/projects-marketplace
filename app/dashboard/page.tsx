@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "@/lib/actions";
+import { signOut, deleteJobs } from "@/lib/actions";
+import { SelectAllCheckbox } from "@/components/select-all-checkbox";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
 const badgeClass: Record<string, string> = {
   open: "badge-open",
@@ -42,29 +44,48 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <ul className="space-y-3">
-        {jobs?.map((job: any) => (
-          <li key={job.id}>
-            <Link
-              href={`/dashboard/jobs/${job.id}`}
-              className="card flex items-center justify-between hover:border-ink"
-            >
-              <div>
-                <p className="font-medium">{job.title}</p>
-                <p className="text-sm text-ink/60">
-                  {job.site ? `${job.site} · ` : ""}
-                  {job.budget_range || "No budget set"} ·{" "}
-                  {job.bids?.[0]?.count ?? 0} bid
-                  {(job.bids?.[0]?.count ?? 0) === 1 ? "" : "s"}
-                </p>
-              </div>
-              <span className={`badge ${badgeClass[job.status]}`}>
-                {job.status}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {jobs && jobs.length > 0 && (
+        <form action={deleteJobs}>
+          <div className="mb-3 flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-ink/70">
+              <SelectAllCheckbox />
+              Select all
+            </label>
+            <ConfirmDeleteButton />
+          </div>
+
+          <ul className="space-y-3">
+            {jobs.map((job: any) => (
+              <li key={job.id} className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  name="job_ids"
+                  value={job.id}
+                  className="accent-signal shrink-0"
+                  aria-label={`Select ${job.title}`}
+                />
+                <Link
+                  href={`/dashboard/jobs/${job.id}`}
+                  className="card flex flex-1 items-center justify-between hover:border-ink"
+                >
+                  <div>
+                    <p className="font-medium">{job.title}</p>
+                    <p className="text-sm text-ink/60">
+                      {job.site ? `${job.site} · ` : ""}
+                      {job.budget_range || "No budget set"} ·{" "}
+                      {job.bids?.[0]?.count ?? 0} bid
+                      {(job.bids?.[0]?.count ?? 0) === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <span className={`badge ${badgeClass[job.status]}`}>
+                    {job.status}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </form>
+      )}
     </main>
   );
 }

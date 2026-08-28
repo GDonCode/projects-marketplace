@@ -81,6 +81,52 @@ export async function acceptBid(formData: FormData) {
   revalidatePath(`/dashboard/jobs/${job_id}`);
 }
 
+export async function addInvites(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const job_id = String(formData.get("job_id"));
+  const tradesmanIds = formData.getAll("tradesmen") as string[];
+
+  if (tradesmanIds.length > 0) {
+    const { error } = await supabase
+      .from("job_invites")
+      .upsert(
+        tradesmanIds.map((tradesman_id) => ({ job_id, tradesman_id })),
+        { onConflict: "job_id,tradesman_id", ignoreDuplicates: true }
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath(`/dashboard/jobs/${job_id}`);
+}
+
+export async function deleteJobs(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const jobIds = formData.getAll("job_ids") as string[];
+  if (jobIds.length === 0) return;
+
+  // .eq("client_id", ...) is belt-and-suspenders — RLS already blocks
+  // deleting jobs that aren't yours, this just avoids a wasted round trip.
+  const { error } = await supabase
+    .from("jobs")
+    .delete()
+    .in("id", jobIds)
+    .eq("client_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard");
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
