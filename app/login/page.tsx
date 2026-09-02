@@ -42,11 +42,12 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md">
-        <div className="mb-8">
-          <Image src="/FL_LOGO.png" alt="Logo of FL Logistics LLC" width={100} height={100} />
-          <p className="label mb-2">Projects Marketplace</p>
-          <h1 className="text-3xl font-semibold">Sign in</h1>
+        <div className="mb-8 flex justify-between items-center">
+          <Image src="/FL_LOGO.png" alt="Logo of FL Logistics LLC" width={200} height={200} />
+          <Image src="/title-logo.svg" alt="Logo of Projects Marketplace" width={200} height={200} />
         </div>
+
+        <h1 className="text-3xl font-semibold mb-8">Sign in</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -78,11 +79,6 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="mt-6 text-xs text-ink/50">
-          Accounts are created by invitation — the owner and invited tradesmen
-          are added directly in Supabase, there's no public sign-up.
-        </p>
       </div>
     </main>
   );
