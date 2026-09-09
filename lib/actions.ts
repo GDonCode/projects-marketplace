@@ -28,6 +28,33 @@ export async function createJob(formData: FormData) {
     throw new Error(error?.message || "Could not create job");
   }
 
+  // ... existing code above ...
+  // Browsers still submit an empty File object when nothing was picked —
+  // size 0 is how we tell "no photo" apart from "a real photo."
+  const photos = (formData.getAll("photos") as File[]).filter((f) => f.size > 0);
+
+  if (photos.length > 0) {
+    const uploadedUrls: string[] = [];
+
+    for (const photo of photos) {
+      // job.id-prefixed path so Storage RLS can check "does this job belong to me"
+      // by reading the first folder segment — see the migration in Edit 4.
+      const path = `${job.id}/${crypto.randomUUID()}-${photo.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("job-photos")
+        .upload(path, photo);
+
+      if (!uploadError) {
+        const { data } = supabase.storage.from("job-photos").getPublicUrl(path);
+        uploadedUrls.push(data.publicUrl);
+      }
+    }
+
+    if (uploadedUrls.length > 0) {
+      await supabase.from("jobs").update({ photo_urls: uploadedUrls }).eq("id", job.id);
+    }
+  }
+
   if (tradesmanIds.length > 0) {
     await supabase
       .from("job_invites")

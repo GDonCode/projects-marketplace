@@ -42,12 +42,12 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-12 flex justify-between items-center">
           <Image src="/FL_LOGO.png" alt="Logo of FL Logistics LLC" width={200} height={200} />
-          <Image src="/title-logo.svg" alt="Logo of Projects Marketplace" width={200} height={200} />
+          <Image src="/title-logo.svg" alt="Logo of Projects Marketplace" width={220} height={220} />
         </div>
 
-        <h1 className="text-3xl font-semibold mb-8">Sign in</h1>
+        <h1 className="text-3xl font-semibold mb-4">Sign in</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -73,9 +73,9 @@ export default function LoginPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-signal">{error}</p>}
+          {error && <p className="text-xs text-signal">{error}</p>}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <button type="submit" disabled={loading} className="btn-primary w-full text-md font-semibold">
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>

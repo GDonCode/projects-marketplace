@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { submitBid } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import { formatWeeklyRate } from "@/lib/format";
+import { JobPhotoGallery } from "@/components/JobPhotoGallery";
+import Link from "next/link";
 
 export default async function CompanyJobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,8 +34,10 @@ export default async function CompanyJobPage({ params }: { params: Promise<{ id:
     .maybeSingle();
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <p className="label mb-2">Job</p>
+    <main className="mx-auto max-w-2xl px-6 pb-12 pt-4">
+      <Link href="/portal" className="label text-[1rem] mb-6 inline-flex items-center gap-1 hover:underline">
+        ← Back
+      </Link>
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-3xl font-semibold">{job.title}</h1>
         <span className={`badge badge-${job.status}`}>{job.status}</span>
@@ -42,6 +46,8 @@ export default async function CompanyJobPage({ params }: { params: Promise<{ id:
       <p className="mb-8 text-sm text-ink/60">
         {job.budget_range} · {job.timeline}
       </p>
+
+      <JobPhotoGallery photoUrls={job.photo_urls} jobTitle={job.title} />
 
       {job.description && (
         <p className="card mb-8 whitespace-pre-wrap text-sm">{job.description}</p>

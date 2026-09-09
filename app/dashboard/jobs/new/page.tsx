@@ -42,6 +42,21 @@ export default async function NewJobPage() {
         </div>
 
         <div>
+          <label className="label" htmlFor="photos">Photos</label>
+          <input
+            id="photos"
+            name="photos"
+            type="file"
+            accept="image/*"
+            multiple
+            className="field"
+          />
+          <p className="mt-1 text-xs text-ink/50">
+            Optional — add photos of the work area to help tradesmen bid accurately.
+          </p>
+        </div>
+
+        <div>
           <p className="label mb-2">Invite tradesmen to bid</p>
           <div className="card space-y-2">
             {(!tradesmen || tradesmen.length === 0) && (
