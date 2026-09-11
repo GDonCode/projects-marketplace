@@ -32,8 +32,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   const { data: allTradesmen } = await supabase
     .from("tradesmen")
-    .select("id, name, trade")
-    .order("trade")
+    .select("id, name, trades")
+    // ... existing code below ...
     .order("name");
 
   const uninvited = (allTradesmen ?? []).filter((t) => !invitedIds.has(t.id));
@@ -48,9 +48,19 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <span className={`badge badge-${job.status}`}>{job.status}</span>
       </div>
       {job.site && <p className="mb-1 text-sm font-medium text-steeldark">{job.site}</p>}
-      <p className="mb-8 text-sm text-ink/60">
-        {job.budget_range} · {job.timeline}
-      </p>
+      <div className="mb-8 flex items-center justify-between">
+        <p className="text-sm text-ink/60">
+          {job.budget_range} · {job.timeline}
+        </p>
+        {job.status === "open" && (
+          <Link
+            href={`/dashboard/jobs/${job.id}/edit`}
+            className="text-sm font-medium underline hover:no-underline"
+          >
+            Edit details
+          </Link>
+        )}
+      </div>
 
       <JobPhotoGallery photoUrls={job.photo_urls} jobTitle={job.title} />
 
@@ -102,11 +112,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           ) : (
             <form action={addInvites} className="card space-y-3">
               <input type="hidden" name="job_id" value={job.id} />
-              {uninvited.map((t) => (
+                            {uninvited.map((t) => (
                 <label key={t.id} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="tradesmen" value={t.id} />
                   <span>{t.name}</span>
-                  {t.trade && <span className="text-ink/50">— {t.trade}</span>}
+                  {t.trades?.length > 0 && (
+                    <span className="text-ink/50">— {t.trades.join(", ")}</span>
+                  )}
                 </label>
               ))}
               <button type="submit" className="btn-primary">

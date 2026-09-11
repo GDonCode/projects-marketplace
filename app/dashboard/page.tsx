@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { signOut, deleteJobs } from "@/lib/actions";
+import { signOut, deleteJobs, generateInviteToken } from "@/lib/actions";
 import { SelectAllCheckbox } from "@/components/select-all-checkbox";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 
@@ -10,7 +10,13 @@ const badgeClass: Record<string, string> = {
   closed: "badge-closed",
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invited?: string }>;
+}) {
+  // ... existing code below ...
+  const { invited } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,6 +43,21 @@ export default async function DashboardPage() {
       <Link href="/dashboard/jobs/new" className="btn-primary mb-8 inline-flex">
         Post a job
       </Link>
+
+      <div className="mb-8 flex items-center gap-3">
+        <form action={generateInviteToken}>
+          <button type="submit" className="btn-secondary">
+            Generate tradesman invite link
+          </button>
+        </form>
+      </div>
+
+      {invited && (
+        <div className="card mb-8 text-sm">
+          <p className="mb-1 text-ink/60">Send this link to the tradesman — it works once, for 7 days:</p>
+          <code className="break-all">{`${process.env.NEXT_PUBLIC_SITE_URL}/join?token=${invited}`}</code>
+        </div>
+      )}
 
       {(!jobs || jobs.length === 0) && (
         <div className="card text-center text-ink/60">

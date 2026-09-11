@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -158,4 +159,113 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+
+export async function generateInviteToken() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const admin = createAdminClient();
+  const { data: invite, error } = await admin
+    .from("invite_tokens")
+    .insert({ created_by: user.id })
+    .select("token")
+    .single();
+
+  if (error || !invite) throw new Error(error?.message || "Could not create invite link");
+
+  revalidatePath("/dashboard");
+  redirect(`/dashboard?invited=${invite.token}`);
+}
+
+export async function joinAsTradesman(formData: FormData) {
+  const token = String(formData.get("token") || "");
+  const admin = createAdminClient();
+
+  const { data: invite } = await admin
+    .from("invite_tokens")
+    .select("token, expires_at, used_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (!invite) throw new Error("That invite link isn't valid.");
+  if (invite.used_at) throw new Error("That invite link has already been used.");
+  if (new Date(invite.expires_at) < new Date()) throw new Error("That invite link has expired.");
+
+  const name = String(formData.get("name") || "");
+  const email = String(formData.get("email") || "");
+  const password = String(formData.get("password") || "");
+  const trades = formData.getAll("trades") as string[];
+
+  if (!name || !email || !password || trades.length === 0) {
+    throw new Error("Name, email, password, and at least one trade are required.");
+  }
+
+  // Regular (non-admin) client so this becomes the new user's own logged-in session.
+  const supabase = await createClient();
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (signUpError || !signUpData.user) {
+    throw new Error(signUpError?.message || "Could not create account");
+  }
+
+  const { data: tradesman, error: tradesmanError } = await admin
+    .from("tradesmen")
+    .insert({ name, trades, contact_email: email })
+    .select()
+    .single();
+
+  if (tradesmanError || !tradesman) {
+    throw new Error(tradesmanError?.message || "Could not create tradesman record");
+  }
+
+  const { error: profileError } = await admin.from("profiles").insert({
+    id: signUpData.user.id,
+    role: "company",
+    tradesman_id: tradesman.id,
+    full_name: name,
+  });
+
+  if (profileError) throw new Error(profileError.message);
+
+  // Burn the token now that account creation fully succeeded — it can't be replayed.
+  await admin.from("invite_tokens").update({ used_at: new Date().toISOString() }).eq("token", token);
+
+  redirect("/portal");
+}
+
+
+export async function updateJob(formData: FormData) {
+  const jobId = formData.get("job_id") as string;
+  const title = formData.get("title") as string;
+  const description = formData.get("description") as string;
+  const budget_range = formData.get("budget_range") as string;
+  const timeline = formData.get("timeline") as string;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // .eq("client_id", user!.id) here is the important bit — it stops a client
+  // from editing a job that isn't theirs, even if they know the job's id
+  const { error } = await supabase
+    .from("jobs")
+    .update({ title, description, budget_range, timeline })
+    .eq("id", jobId)
+    .eq("client_id", user!.id);
+
+  if (error) {
+    throw new Error(`Failed to update job: ${error.message}`);
+  }
+
+  revalidatePath(`/dashboard/jobs/${jobId}`);
+  redirect(`/dashboard/jobs/${jobId}`);
 }

@@ -4,10 +4,10 @@ import { createJob } from "@/lib/actions";
 export default async function NewJobPage() {
   const supabase = await createClient();
   const { data: tradesmen } = await supabase
-    .from("tradesmen")
-    .select("id, name, trade")
-    .order("trade")
-    .order("name");
+  .from("tradesmen")
+  .select("id, name, trades")
+  // ... existing code below ...
+  .order("name");
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -68,7 +68,9 @@ export default async function NewJobPage() {
               <label key={t.id} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="tradesmen" value={t.id} />
                 <span>{t.name}</span>
-                {t.trade && <span className="text-ink/50">— {t.trade}</span>}
+                {t.trades?.length > 0 && (
+                  <span className="text-ink/50">— {t.trades.join(", ")}</span>
+                )}
               </label>
             ))}
           </div>
