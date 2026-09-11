@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { joinAsTradesman } from "@/lib/actions";
 
@@ -21,7 +21,7 @@ function getPasswordStrength(password: string) {
   return { score, label: labels[score], color: colors[score] };
 }
 
-export default function JoinPage() {
+function JoinForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [password, setPassword] = useState("");
@@ -104,5 +104,21 @@ export default function JoinPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function JoinPage() {
+  return (
+    // Suspense catches JoinForm while it's "waiting" on the URL's search params,
+    // and shows the fallback in the meantime instead of failing the build.
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-sm text-ink/50">
+          Loading…
+        </div>
+      }
+    >
+      <JoinForm />
+    </Suspense>
   );
 }
