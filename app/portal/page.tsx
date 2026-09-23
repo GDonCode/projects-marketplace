@@ -18,7 +18,21 @@ export default async function PortalPage() {
     .from("job_invites")
     .select("jobs(id, title, site, status, budget_range, timeline, created_at)")
     .eq("tradesman_id", profile?.tradesman_id);
+  
+  const { data: myBids } = await supabase
+    .from("bids")
+    .select("job_id, status")
+    .eq("tradesman_id", profile?.tradesman_id);
 
+  // A Set is a quick "is this in the list?" lookup, holding the job ids this tradesman won.
+  const wonJobIds = new Set(
+    (myBids ?? []).filter((b) => b.status === "accepted").map((b) => b.job_id)
+  );
+
+  // An awarded job only reads "awarded" to the tradesman who won it; everyone else sees "closed".
+  const statusFor = (job: { id: string; status: string }) =>
+    job.status === "awarded" && !wonJobIds.has(job.id) ? "closed" : job.status;
+ 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-8 flex items-center justify-between">
@@ -51,7 +65,7 @@ export default async function PortalPage() {
                   {inv.jobs.budget_range || "No budget set"} · {inv.jobs.timeline}
                 </p>
               </div>
-              <span className={`badge badge-${inv.jobs.status}`}>{inv.jobs.status}</span>
+              <span className={`badge badge-${statusFor(inv.jobs)}`}>{statusFor(inv.jobs)}</span>
             </Link>
           </li>
         ))}

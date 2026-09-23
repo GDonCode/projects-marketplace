@@ -33,6 +33,8 @@ export default async function CompanyJobPage({ params }: { params: Promise<{ id:
     .eq("tradesman_id", profile?.tradesman_id)
     .maybeSingle();
 
+  const jobStatus = job.status === "awarded" && myBid?.status !== "accepted" ? "closed" : job.status;
+
   return (
     <main className="mx-auto max-w-2xl px-6 pb-12 pt-4">
       <Link href="/portal" className="label text-[1rem] mb-6 inline-flex items-center gap-1 hover:underline">
@@ -40,7 +42,7 @@ export default async function CompanyJobPage({ params }: { params: Promise<{ id:
       </Link>
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-3xl font-semibold">{job.title}</h1>
-        <span className={`badge badge-${job.status}`}>{job.status}</span>
+        <span className={`badge badge-${jobStatus}`}>{jobStatus}</span>
       </div>
       {job.site && <p className="mb-1 text-sm font-medium text-steeldark">{job.site}</p>}
       <p className="mb-8 text-sm text-ink/60">

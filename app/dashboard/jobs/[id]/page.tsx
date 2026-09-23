@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { acceptBid, addInvites } from "@/lib/actions";
+import { acceptBid, addInvites, cancelJob } from "@/lib/actions";
+import { CancelJobButton } from "@/components/cancel-job-button";
 import { notFound } from "next/navigation";
 import { formatWeeklyRate } from "@/lib/format";
 import { JobPhotoGallery } from "@/components/JobPhotoGallery";
@@ -40,7 +41,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <main className="mx-auto max-w-2xl px-6 pb-12 pt-4">
-      <Link href="/portal" className="label text-[1rem] mb-6 inline-flex items-center gap-1 hover:underline">
+      <Link href="/dashboard" className="label text-[1rem] mb-6 inline-flex items-center gap-1 hover:underline">
         ← Back
       </Link>
       <div className="mb-1 flex items-center justify-between">
@@ -127,6 +128,16 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             </form>
           )}
         </>
+      )}
+
+      {job.status === "open" && (
+        <form action={cancelJob} className="mt-10 border-t border-ink/10 pt-6">
+          <input type="hidden" name="job_id" value={job.id} />
+          <p className="mb-3 text-sm text-ink/60">
+            No longer need this job? Cancelling closes it to bids and notifies invited tradesmen. This can't be undone.
+          </p>
+          <CancelJobButton />
+        </form>
       )}
     </main>
   );

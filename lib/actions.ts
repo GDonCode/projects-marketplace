@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { notifyInvited, notifyNewBid, notifyBidResults, notifyCancelled } from "@/lib/email";
 
 export async function createJob(formData: FormData) {
   const supabase = await createClient();
@@ -60,6 +61,13 @@ export async function createJob(formData: FormData) {
     await supabase
       .from("job_invites")
       .insert(tradesmanIds.map((tradesman_id) => ({ job_id: job.id, tradesman_id })));
+
+    const { data: invited } = await supabase
+      .from("tradesmen")
+      .select("name, contact_email")
+      .in("id", tradesmanIds);
+
+    await notifyInvited(job.id, job.title, invited ?? []);
   }
 
   revalidatePath("/dashboard");
@@ -85,6 +93,14 @@ export async function submitBid(formData: FormData) {
 
   if (!profile?.tradesman_id) throw new Error("No tradesman record on this account");
 
+  // Checked before saving so the owner's email can say "new bid" vs "updated bid".
+  const { data: existingBid } = await supabase
+    .from("bids")
+    .select("id")
+    .eq("job_id", job_id)
+    .eq("tradesman_id", profile.tradesman_id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("bids")
     .upsert(
@@ -93,6 +109,26 @@ export async function submitBid(formData: FormData) {
     );
 
   if (error) throw new Error(error.message);
+
+  const [{ data: job }, { data: tradesman }] = await Promise.all([
+    supabase.from("jobs").select("title, client_id").eq("id", job_id).single(),
+    supabase.from("tradesmen").select("name").eq("id", profile.tradesman_id).single(),
+  ]);
+
+  if (job) {
+    // The owner's email lives in Supabase Auth, which only the admin client can read.
+    const { data: owner } = await createAdminClient().auth.admin.getUserById(job.client_id);
+    if (owner.user?.email) {
+      await notifyNewBid({
+        to: owner.user.email,
+        jobId: job_id,
+        jobTitle: job.title,
+        tradesmanName: tradesman?.name ?? "A tradesman",
+        amount,
+        isUpdate: !!existingBid, // !! turns "a bid row or null" into true/false
+      });
+    }
+  }
 
   revalidatePath(`/portal/jobs/${job_id}`);
 }
@@ -105,6 +141,30 @@ export async function acceptBid(formData: FormData) {
   await supabase.from("bids").update({ status: "rejected" }).eq("job_id", job_id);
   await supabase.from("bids").update({ status: "accepted" }).eq("id", bid_id);
   await supabase.from("jobs").update({ status: "awarded" }).eq("id", job_id);
+
+  const [{ data: job }, { data: bids }] = await Promise.all([
+    supabase.from("jobs").select("title").eq("id", job_id).single(),
+    // tradesmen(...) follows bids.tradesman_id to pull each bidder's name and email in the same query
+    supabase.from("bids").select("id, tradesmen(name, contact_email)").eq("job_id", job_id),
+  ]);
+
+  if (job && bids) {
+    // Without generated DB types, Supabase can't tell each bid has exactly one tradesman,
+    // so it types the join as an array. This unwraps either shape into one record (or null).
+    const one = (t: unknown) =>
+      (Array.isArray(t) ? t[0] ?? null : t) as { name: string; contact_email: string | null } | null;
+
+    const winner = one(bids.find((b) => b.id === bid_id)?.tradesmen ?? null);
+    const others = bids
+      .filter((b) => b.id !== bid_id)
+      .flatMap((b) => {
+        const t = one(b.tradesmen);
+        return t ? [t] : []; // skips any bid whose tradesman was deleted
+      });
+    await notifyBidResults(job_id, job.title, winner, others);
+  }
+
+  revalidatePath(`/dashboard/jobs/${job_id}`);
 
   revalidatePath(`/dashboard/jobs/${job_id}`);
 }
@@ -120,16 +180,70 @@ export async function addInvites(formData: FormData) {
   const tradesmanIds = formData.getAll("tradesmen") as string[];
 
   if (tradesmanIds.length > 0) {
-    const { error } = await supabase
+    // With ignoreDuplicates, .select() returns only rows actually inserted,
+    // so tradesmen who were already invited aren't emailed a second time.
+    const { data: added, error } = await supabase
       .from("job_invites")
       .upsert(
         tradesmanIds.map((tradesman_id) => ({ job_id, tradesman_id })),
         { onConflict: "job_id,tradesman_id", ignoreDuplicates: true }
-      );
+      )
+      .select("tradesman_id");
     if (error) throw new Error(error.message);
+
+    const newIds = (added ?? []).map((row) => row.tradesman_id);
+    if (newIds.length > 0) {
+      const [{ data: job }, { data: invited }] = await Promise.all([
+        supabase.from("jobs").select("title").eq("id", job_id).single(),
+        supabase.from("tradesmen").select("name, contact_email").in("id", newIds),
+      ]);
+      if (job) await notifyInvited(job_id, job.title, invited ?? []);
+    }
   }
 
   revalidatePath(`/dashboard/jobs/${job_id}`);
+}
+
+export async function cancelJob(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const job_id = String(formData.get("job_id"));
+
+  // .eq("status", "open") means only an open job can flip to closed, so a double-click
+  // or a stale tab can't cancel a job that's already been awarded.
+  const { data: job, error } = await supabase
+    .from("jobs")
+    .update({ status: "closed" })
+    .eq("id", job_id)
+    .eq("client_id", user.id)
+    .eq("status", "open")
+    .select("title")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  // job is null when nothing changed (already closed or awarded), so no emails go out twice.
+  if (job) {
+    const { data: invites } = await supabase
+      .from("job_invites")
+      .select("tradesmen(name, contact_email)")
+      .eq("job_id", job_id);
+
+    const recipients = (invites ?? []).flatMap((i) => {
+      // Same array-vs-object unwrapping as acceptBid: Supabase types the join as an array.
+      const t = Array.isArray(i.tradesmen) ? i.tradesmen[0] : i.tradesmen;
+      return t ? [t as { name: string; contact_email: string | null }] : [];
+    });
+
+    await notifyCancelled(job.title, recipients);
+  }
+
+  revalidatePath(`/dashboard/jobs/${job_id}`);
+  revalidatePath("/dashboard");
 }
 
 export async function deleteJobs(formData: FormData) {
@@ -205,11 +319,13 @@ export async function joinAsTradesman(formData: FormData) {
     throw new Error("Name, email, password, and at least one trade are required.");
   }
 
-  // Regular (non-admin) client so this becomes the new user's own logged-in session.
-  const supabase = await createClient();
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+  // The invite token already proves this person was sent the link by the owner,
+  // so the account is created pre-confirmed and no confirmation email is sent.
+  // (Variable names kept as signUpData/signUpError so the profile insert below still works.)
+  const { data: signUpData, error: signUpError } = await admin.auth.admin.createUser({
     email,
     password,
+    email_confirm: true, // marks the email as verified, so Supabase skips the confirmation email
   });
 
   if (signUpError || !signUpData.user) {
@@ -237,6 +353,11 @@ export async function joinAsTradesman(formData: FormData) {
 
   // Burn the token now that account creation fully succeeded — it can't be replayed.
   await admin.from("invite_tokens").update({ used_at: new Date().toISOString() }).eq("token", token);
+
+  // Regular (non-admin) client so the login cookie is set in this tradesman's browser.
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError) redirect("/login"); // account exists either way; they can sign in manually
 
   redirect("/portal");
 }
