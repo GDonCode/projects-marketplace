@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { signOut, deleteJobs, generateInviteToken } from "@/lib/actions";
 import { SelectAllCheckbox } from "@/components/select-all-checkbox";
@@ -17,6 +18,12 @@ export default async function DashboardPage({
 }) {
   // ... existing code below ...
   const { invited } = await searchParams;
+  // Build the invite link from the address this page was actually loaded on:
+  // localhost while developing, the live domain in production, with no env var to get wrong.
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host"); // Vercel passes the public domain in x-forwarded-host
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  const siteUrl = `${proto}://${host}`;
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,7 +62,7 @@ export default async function DashboardPage({
       {invited && (
         <div className="card mb-8 text-sm">
           <p className="mb-1 text-ink/60">Send this link to the tradesman — it works once, for 7 days:</p>
-          <code className="break-all">{`${process.env.NEXT_PUBLIC_SITE_URL}/join?token=${invited}`}</code>
+          <code className="break-all">{`${siteUrl}/join?token=${invited}`}</code>
         </div>
       )}
 
