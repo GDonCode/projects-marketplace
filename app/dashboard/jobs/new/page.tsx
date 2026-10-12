@@ -6,7 +6,6 @@ export default async function NewJobPage() {
   const { data: tradesmen } = await supabase
   .from("tradesmen")
   .select("id, name, trades")
-  // ... existing code below ...
   .order("name");
 
   return (
