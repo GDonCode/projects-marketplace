@@ -50,6 +50,7 @@ export default async function DashboardPage({
       <Link href="/dashboard/jobs/new" className="btn-primary mb-8 inline-flex">
         Post a job
       </Link>
+      <Link href="/dashboard/requests" className="btn-primary">Job requests</Link>
 
       <div className="mb-8 flex items-center gap-3">
         <form action={generateInviteToken}>

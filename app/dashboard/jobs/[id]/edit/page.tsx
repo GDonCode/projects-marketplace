@@ -13,7 +13,7 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("id, title, description, budget_range, timeline, status, client_id")
+    .select("id, title, description, site, budget_range, timeline, photo_urls, status, client_id")
     .eq("id", id)
     .single();
 
@@ -50,6 +50,16 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div>
+          <label className="mb-1 block text-sm font-medium">Hotel / site</label>
+          <input
+            type="text"
+            name="site"
+            defaultValue={job.site ?? ""}
+            className="w-full rounded-lg border border-ink/20 bg-transparent px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
           <label className="mb-1 block text-sm font-medium">Description</label>
           <textarea
             name="description"
@@ -79,6 +89,33 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
           />
         </div>
 
+                {job.photo_urls?.length > 0 && (
+          <div>
+            <p className="mb-2 block text-sm font-medium">Current photos (tick to remove)</p>
+            <div className="grid grid-cols-3 gap-3">
+              {job.photo_urls.map((url: string) => (
+                <label key={url} className="relative block cursor-pointer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="aspect-square w-full rounded-md object-cover" />
+                  {/* Every ticked box sends its URL under the name "remove_photos" */}
+                  <input type="checkbox" name="remove_photos" value={url} className="absolute left-2 top-2" />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="photos">Add photos</label>
+          <input
+            id="photos"
+            name="photos"
+            type="file"
+            accept="image/*"
+            multiple
+            className="w-full rounded-lg border border-ink/20 bg-transparent px-3 py-2 text-sm"
+          />
+        </div>
         <div className="flex items-center gap-3 pt-2">
           <button type="submit" className="btn-primary">
             Save changes

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { notifyInvited, notifyNewBid, notifyBidResults, notifyCancelled } from "@/lib/email";
+import { notifyRequestApproved } from "@/lib/request-emails";
 
 export async function createJob(formData: FormData) {
   const supabase = await createClient();
@@ -18,6 +19,7 @@ export async function createJob(formData: FormData) {
   const site = String(formData.get("site") || "");
   const budget_range = String(formData.get("budget_range") || "");
   const timeline = String(formData.get("timeline") || "");
+  const requestId = String(formData.get("request_id") || ""); // set when converting a hotel request
   const tradesmanIds = formData.getAll("tradesmen") as string[];
 
   const { data: job, error } = await supabase
@@ -56,7 +58,54 @@ export async function createJob(formData: FormData) {
       await supabase.from("jobs").update({ photo_urls: uploadedUrls }).eq("id", job.id);
     }
   }
+    // Posted from a hotel request? Claim it, copy its photos into this job, and email the hotel.
+  if (requestId) {
+    // Claiming first (status 'new' -> 'approved') means only one run can win,
+    // so photos aren't copied and the hotel isn't emailed twice.
+    const { data: claimed } = await supabase
+      .from("job_requests")
+      .update({ status: "approved", job_id: job.id })
+      .eq("id", requestId)
+      .eq("status", "new")
+      .select("contact_name, contact_email, image_paths")
+      .maybeSingle();
 
+    if (claimed) {
+      const copied: string[] = [];
+
+      for (const srcPath of (claimed.image_paths ?? []) as string[]) {
+        // Owner can read the private bucket (RLS), so this runs with the normal client
+        const { data: blob } = await supabase.storage.from("job-request-images").download(srcPath);
+        if (!blob) continue;
+
+        const ext = srcPath.split(".").pop() ?? "jpg";
+        // job.id-prefixed, same as manual uploads, so the job-photos RLS accepts it
+        const destPath = `${job.id}/${crypto.randomUUID()}.${ext}`;
+        const { error: copyError } = await supabase.storage
+          .from("job-photos")
+          .upload(destPath, blob, { contentType: blob.type });
+
+        if (!copyError) {
+          copied.push(supabase.storage.from("job-photos").getPublicUrl(destPath).data.publicUrl);
+        }
+      }
+
+      if (copied.length > 0) {
+        // Append to whatever photos were just uploaded by hand
+        const { data: current } = await supabase
+          .from("jobs")
+          .select("photo_urls")
+          .eq("id", job.id)
+          .single();
+        await supabase
+          .from("jobs")
+          .update({ photo_urls: [...(current?.photo_urls ?? []), ...copied] })
+          .eq("id", job.id);
+      }
+
+      await notifyRequestApproved(claimed.contact_email, claimed.contact_name);
+    }
+  }
   if (tradesmanIds.length > 0) {
     await supabase
       .from("job_invites")
@@ -363,25 +412,73 @@ export async function joinAsTradesman(formData: FormData) {
 }
 
 
+const MAX_JOB_PHOTOS = 10;
+
 export async function updateJob(formData: FormData) {
   const jobId = formData.get("job_id") as string;
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
   const budget_range = formData.get("budget_range") as string;
   const timeline = formData.get("timeline") as string;
+  // null means "this form has no site field", so we leave the site alone
+  const siteRaw = formData.get("site");
+  const removeUrls = formData.getAll("remove_photos") as string[];
+  const newPhotos = (formData.getAll("photos") as File[]).filter((f) => f.size > 0);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  // .eq("client_id", user!.id) here is the important bit — it stops a client
-  // from editing a job that isn't theirs, even if they know the job's id
+  // .eq("client_id", user.id) stops a client from editing a job that isn't theirs
+  const { data: job } = await supabase
+    .from("jobs")
+    .select("photo_urls")
+    .eq("id", jobId)
+    .eq("client_id", user.id)
+    .single();
+  if (!job) throw new Error("Job not found");
+
+  const current: string[] = job.photo_urls ?? [];
+  // Only honor removals of URLs that really belong to this job
+  const toRemove = current.filter((u) => removeUrls.includes(u));
+  const kept = current.filter((u) => !toRemove.includes(u));
+
+  if (kept.length + newPhotos.length > MAX_JOB_PHOTOS) {
+    throw new Error(`A job can have at most ${MAX_JOB_PHOTOS} photos.`);
+  }
+
+  // Public URL -> storage path: everything after "/job-photos/"
+  const pathOf = (url: string) => decodeURIComponent(url.split("/job-photos/")[1] ?? "");
+  const removePaths = toRemove.map(pathOf).filter(Boolean);
+  if (removePaths.length > 0) {
+    await supabase.storage.from("job-photos").remove(removePaths);
+  }
+
+  const added: string[] = [];
+  for (const photo of newPhotos) {
+    // job id first, so the job-photos RLS can check "is this job mine"
+    const safeName = photo.name.replace(/[^\w.\-]/g, "_"); // strips spaces and odd characters
+    const path = `${jobId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from("job-photos").upload(path, photo);
+    if (!uploadError) {
+      added.push(supabase.storage.from("job-photos").getPublicUrl(path).data.publicUrl);
+    }
+  }
+
   const { error } = await supabase
     .from("jobs")
-    .update({ title, description, budget_range, timeline })
+    .update({
+      title,
+      description,
+      budget_range,
+      timeline,
+      ...(siteRaw !== null && { site: String(siteRaw) }), // only include when the form sent it
+      photo_urls: [...kept, ...added],
+    })
     .eq("id", jobId)
-    .eq("client_id", user!.id);
+    .eq("client_id", user.id);
 
   if (error) {
     throw new Error(`Failed to update job: ${error.message}`);

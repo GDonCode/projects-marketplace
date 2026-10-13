@@ -1,12 +1,37 @@
 import { createClient } from "@/lib/supabase/server";
 import { createJob } from "@/lib/actions";
 
-export default async function NewJobPage() {
+export default async function NewJobPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
   const supabase = await createClient();
   const { data: tradesmen } = await supabase
   .from("tradesmen")
   .select("id, name, trades")
   .order("name");
+
+  const { from } = await searchParams;
+  // Arrived from the requests inbox? Load that request to prefill the form.
+  // RLS means only the FL owner can read it; anyone else just gets an empty form.
+  const { data: fromRequest } = from
+    ? await supabase
+        .from("job_requests")
+        .select("id, company_name, trade, site_location, description, desired_timeline, image_paths")
+        .eq("id", from)
+        .eq("status", "new")
+        .maybeSingle()
+    : { data: null };
+
+  // undefined = leave the field blank. Contact details are deliberately NOT copied:
+  // tradesmen shouldn't see the hotel's email/phone.
+  const prefill = {
+    title: fromRequest ? `${fromRequest.trade} — ${fromRequest.site_location}` : undefined,
+    site: fromRequest?.company_name,
+    description: fromRequest?.description,
+    timeline: fromRequest?.desired_timeline ?? undefined,
+  };
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -14,19 +39,21 @@ export default async function NewJobPage() {
       <h1 className="mb-8 text-3xl font-semibold">Post a job</h1>
 
       <form action={createJob} className="space-y-5">
+        {/* Tells createJob which request this job came from */}
+        {fromRequest && <input type="hidden" name="request_id" value={fromRequest.id} />}
         <div>
           <label className="label" htmlFor="title">Title</label>
-          <input id="title" name="title" required className="field" placeholder="e.g. Pool deck retiling — 2nd floor" />
+          <input id="title" name="title" defaultValue={prefill.title} required className="field" placeholder="e.g. Pool deck retiling — 2nd floor" />
         </div>
 
         <div>
           <label className="label" htmlFor="site">Hotel / site</label>
-          <input id="site" name="site" className="field" placeholder="e.g. Round Hill Hotel" />
+          <input id="site" name="site" defaultValue={prefill.site} className="field" placeholder="e.g. Round Hill Hotel" />
         </div>
 
         <div>
           <label className="label" htmlFor="description">Description</label>
-          <textarea id="description" name="description" rows={5} className="field" placeholder="What needs doing, where on the property, and any specifics tradesmen should know before bidding." />
+          <textarea id="description" name="description" defaultValue={prefill.description} rows={5} className="field" placeholder="What needs doing, where on the property, and any specifics tradesmen should know before bidding." />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -36,7 +63,7 @@ export default async function NewJobPage() {
           </div>
           <div>
             <label className="label" htmlFor="timeline">Timeline</label>
-            <input id="timeline" name="timeline" className="field" placeholder="e.g. Within 2 weeks" />
+            <input id="timeline" name="timeline" defaultValue={prefill.timeline} className="field" placeholder="e.g. Within 2 weeks" />
           </div>
         </div>
 
@@ -53,6 +80,11 @@ export default async function NewJobPage() {
           <p className="mt-1 text-xs text-ink/50">
             Optional — add photos of the work area to help tradesmen bid accurately.
           </p>
+          {fromRequest && (fromRequest.image_paths?.length ?? 0) > 0 && (
+            <p className="mt-1 text-xs text-ink/70">
+              {fromRequest.image_paths.length} photo(s) from the hotel's request will be attached automatically.
+            </p>
+          )}
         </div>
 
         <div>

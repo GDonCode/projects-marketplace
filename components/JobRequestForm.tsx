@@ -1,36 +1,29 @@
-'use client'
+"use client";
 
-import { useActionState } from 'react'
-import { submitJobRequest, type RequestState } from '@/app/request-job/actions'
+import { useActionState } from "react";
+import { submitJobRequest, type RequestState } from "@/app/request-job/actions";
 
-const initial: RequestState = { ok: false }
+const initial: RequestState = { ok: false };
 
 const input =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 export default function JobRequestForm() {
   // state = whatever the action last returned; pending = true while it runs
-  const [state, formAction, pending] = useActionState(submitJobRequest, initial)
+  const [state, formAction, pending] = useActionState(submitJobRequest, initial);
 
   if (state.ok) {
     return (
       <div className="rounded-lg border border-good/30 bg-good/10 p-6 text-sm">
         Thank you. Your request has been received. Check your email for confirmation.
       </div>
-    )
+    );
   }
 
   return (
     <form action={formAction} className="space-y-4">
       {/* Honeypot: hidden from humans and screen readers, bots fill it in */}
-      <input
-        type="text"
-        name="website"
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-        className="hidden"
-      />
+      <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
 
       <input name="company_name" required maxLength={120} placeholder="Hotel / company name *" className={input} />
       <input name="contact_name" required maxLength={120} placeholder="Your name *" className={input} />
@@ -41,6 +34,21 @@ export default function JobRequestForm() {
       <textarea name="description" required maxLength={2000} rows={5} placeholder="Describe the job *" className={input} />
       <input name="desired_timeline" maxLength={200} placeholder="Desired timeline" className={input} />
 
+      <div>
+        <label htmlFor="images" className="mb-1 block text-sm text-gray-600">
+          Photos of the site or issue (optional, up to 3, 5 MB each)
+        </label>
+        <input
+          id="images"
+          name="images"
+          type="file"
+          multiple
+          // A hint to the file picker only; the server re-checks type and size
+          accept="image/jpeg,image/png,image/webp"
+          className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2"
+        />
+      </div>
+
       {state.error && <p className="text-sm text-danger">{state.error}</p>}
 
       <button
@@ -48,8 +56,8 @@ export default function JobRequestForm() {
         disabled={pending}
         className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {pending ? 'Sending…' : 'Submit request'}
+        {pending ? "Sending…" : "Submit request"}
       </button>
     </form>
-  )
+  );
 }

@@ -7,6 +7,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // and it only delivers to the email on your own Resend account.
 const FROM = process.env.EMAIL_FROM || "Projects Marketplace <onboarding@resend.dev>";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+// Where replies land. Optional: if unset, replies go to the From address.
+const REPLY_TO = process.env.EMAIL_REPLY_TO || undefined;
 
 type Recipient = { name: string; contact_email: string | null };
 type Email = { to: string; subject: string; html: string };
@@ -37,7 +39,9 @@ async function sendAll(emails: Email[]) {
   const valid = emails.filter((e) => e.to);
   if (valid.length === 0) return;
   try {
-    const { error } = await resend.batch.send(valid.map((e) => ({ from: FROM, ...e })));
+    const { error } = await resend.batch.send(
+      valid.map((e) => ({ from: FROM, replyTo: REPLY_TO, ...e }))
+    );
     if (error) console.error("Email send failed:", error);
   } catch (err) {
     console.error("Email send failed:", err);
